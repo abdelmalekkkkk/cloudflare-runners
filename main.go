@@ -42,6 +42,20 @@ func main() {
 		log.Fatal("An error occured", err)
 	}
 
+	accessToken, err := ghAuth.AccessToken()
+
+	if err != nil {
+		log.Fatal("An error occured", err)
+	}
+
+	ghClient := github.CreateAPIClient(ctx, accessToken.AccessToken)
+
+	err = ghClient.RegisterWebhooks()
+
+	if err != nil {
+		log.Fatal("An error occured", err)
+	}
+
 	fmt.Println("Verifying Cloudflare auth...")
 	cfAuth := cloudflare.CreateAuthenticator(ctx)
 
