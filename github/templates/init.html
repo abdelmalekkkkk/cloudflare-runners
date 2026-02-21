@@ -1,0 +1,18 @@
+<html>
+    <head>
+        <title>Cloudflare Runners</title>
+    </head>
+    <body>
+        <form
+            id="form"
+            action="https://github.com/{{ if .Organization }}organizations/{{.Organization}}/{{end}}settings/apps/new?state={{.State}}"
+            method="post"
+        >
+            <input type="hidden" name="manifest" value="{{.ManifestJSON}}" />
+        </form>
+
+        <script>
+            window.form.submit();
+        </script>
+    </body>
+</html>

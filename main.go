@@ -2,18 +2,22 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"path"
 	"syscall"
 
-	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
-	github "github.com/abdelmalekkkkk/cf-runners/github"
+	"github.com/abdelmalekkkkk/cf-runners/github"
+	"github.com/abdelmalekkkkk/cf-runners/input"
 )
 
-const configDir = "cf-runners"
+type InitPageParams struct {
+	Organization string
+	State        string
+	ManifestJSON string
+}
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -27,41 +31,17 @@ func main() {
 		cancel()
 	}()
 
-	baseDir, err := os.UserConfigDir()
+	fmt.Print("Please enter your organization slug, or leave empty if you want the app to be created in your personal account: ")
+
+	organization, err := input.ReadLine(ctx)
+
+	fmt.Println(organization)
+
+	initializer := github.CreateInitializer(ctx, organization)
+
+	err = initializer.Run(organization)
 
 	if err != nil {
-		log.Fatal("An error occured", err)
-	}
-
-	fmt.Println("Verifying Github auth...")
-	ghAuth := github.CreateAuthenticator(ctx, path.Join(baseDir, configDir))
-
-	err = ghAuth.Authenticate()
-
-	if err != nil {
-		log.Fatal("An error occured", err)
-	}
-
-	accessToken, err := ghAuth.AccessToken()
-
-	if err != nil {
-		log.Fatal("An error occured", err)
-	}
-
-	ghClient := github.CreateAPIClient(ctx, accessToken.AccessToken)
-
-	err = ghClient.RegisterWebhooks()
-
-	if err != nil {
-		log.Fatal("An error occured", err)
-	}
-
-	fmt.Println("Verifying Cloudflare auth...")
-	cfAuth := cloudflare.CreateAuthenticator(ctx)
-
-	err = cfAuth.Authenticate()
-
-	if err != nil {
-		log.Fatal("An error occured", err)
+		log.Fatal("An error occured: ", err)
 	}
 }
