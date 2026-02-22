@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-19",
+  "observability": {
+    "enabled": true,
+  },
+  "compatibility_flags": ["nodejs_compat"],
+  "secrets_store_secrets": [
+    {
+      "store_id": "cd94089bb136497ba1d55e0031208753",
+      "binding": "APP_KEY",
+      "secret_name": "cf-runners-key",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "cf-runners",
+    },
+  ],
+}

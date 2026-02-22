@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/pkg/browser"
@@ -23,59 +24,73 @@ func CreateInitializer(ctx context.Context, organization string) *Initializer {
 	}
 }
 
-type app struct {
+type App struct {
+	ID       int    `json:"id"`
+	ClientID string `json:"client_id"`
+	Slug     string `json:"slug"`
+	NodeID   string `json:"node_id"`
+	Name     string `json:"name"`
+	URL      string `json:"html_url"`
+	JSON     []byte
 }
 
-func (i *Initializer) Run(organization string) error {
+func (i *Initializer) Run() (App, error) {
+	app := App{}
+
 	state := rand.Text()
 
-	server := CreateSetupServer(i.ctx, organization, state)
+	server := CreateSetupServer(i.ctx, i.organization, state)
 
 	if err := server.run(); err != nil {
-		return err
+		return app, err
 	}
 
 	url, err := server.url()
 	if err != nil {
-		return err
+		return app, err
 	}
 
 	if err = browser.OpenURL(url); err != nil {
-		return err
+		return app, err
 	}
 
 	callback, err := server.waitForCallback()
 	if err != nil {
-		return err
+		return app, err
 	}
 
 	err = server.stop()
 	if err != nil {
-		return err
+		return app, err
 	}
 
 	if callback.state != state {
-		return errors.New("invalid state")
+		return app, errors.New("invalid state")
 	}
 
 	req, err := http.NewRequestWithContext(i.ctx, http.MethodPost, fmt.Sprintf("https://api.github.com/app-manifests/%s/conversions", callback.code), nil)
 	if err != nil {
-		return err
+		return app, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return app, err
 	}
 
-	app := new(map[string]any)
+	body, err := io.ReadAll(resp.Body)
 
-	err = json.NewDecoder(resp.Body).Decode(app)
 	if err != nil {
-		return err
+		return app, err
 	}
 
-	fmt.Println(app)
+	app.JSON = body
 
-	return nil
+	err = json.Unmarshal(body, &app)
+
+	if err != nil {
+		return app, err
+	}
+
+	return app, nil
 }

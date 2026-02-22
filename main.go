@@ -9,15 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
 	"github.com/abdelmalekkkkk/cf-runners/github"
 	"github.com/abdelmalekkkkk/cf-runners/input"
 )
-
-type InitPageParams struct {
-	Organization string
-	State        string
-	ManifestJSON string
-}
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -31,17 +26,37 @@ func main() {
 		cancel()
 	}()
 
-	fmt.Print("Please enter your organization slug, or leave empty if you want the app to be created in your personal account: ")
+	fmt.Print("Please enter a Cloudflare Account API Token: ")
 
-	organization, err := input.ReadLine(ctx)
-
-	fmt.Println(organization)
-
-	initializer := github.CreateInitializer(ctx, organization)
-
-	err = initializer.Run(organization)
-
+	cfToken, err := input.ReadLine(ctx)
 	if err != nil {
 		log.Fatal("An error occured: ", err)
 	}
+
+	client, err := cloudflare.CreateClient(ctx, cfToken)
+	if err != nil {
+		log.Fatal("An error occured while creating client: ", err)
+	}
+
+	err = client.CreateWorker()
+	if err != nil {
+		log.Fatal("An error occured while creating worker: ", err)
+	}
+
+	fmt.Print("Please enter your organization slug, or leave empty if you want the app to be created in your personal account: ")
+
+	organization, err := input.ReadLine(ctx)
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
+
+	// todo: pass worker url
+	initializer := github.CreateInitializer(ctx, organization)
+
+	app, err := initializer.Run()
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
+
+	fmt.Printf("Successfully created \"%s\" Github App. You can manage it from %s\n", app.Name, app.URL)
 }
