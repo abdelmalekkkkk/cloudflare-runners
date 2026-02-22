@@ -30,8 +30,22 @@ type setupServer struct {
 	callbackCh chan *callback
 	errCh      chan error
 
+	params templateParams
+}
+
+type templateParams struct {
 	organization string
+	webhookURL   string
 	state        string
+}
+
+func CreateSetupServer(ctx context.Context, params templateParams) *setupServer {
+	return &setupServer{
+		ctx:        ctx,
+		params:     params,
+		callbackCh: make(chan *callback, 1),
+		errCh:      make(chan error, 1),
+	}
 }
 
 func (s *setupServer) url() (string, error) {
@@ -59,12 +73,6 @@ func (s *setupServer) waitForCallback() (*callback, error) {
 	}
 }
 
-type HomepageParams struct {
-	Organization string
-	State        string
-	ManifestJSON string
-}
-
 func (s *setupServer) handleHome(w http.ResponseWriter, r *http.Request) {
 	url, err := s.url()
 
@@ -75,16 +83,30 @@ func (s *setupServer) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	manifestBuf := &bytes.Buffer{}
 
-	err = manifestTemplate.Execute(manifestBuf, fmt.Sprintf("%s/callback", url))
+	type ManifestParams struct {
+		WebhookURL  string
+		RedirectURL string
+	}
+
+	err = manifestTemplate.Execute(manifestBuf, ManifestParams{
+		RedirectURL: fmt.Sprintf("%s/callback", url),
+		WebhookURL:  s.params.webhookURL,
+	})
 
 	if err != nil {
 		s.errCh <- err
 		return
 	}
 
+	type HomepageParams struct {
+		Organization string
+		State        string
+		ManifestJSON string
+	}
+
 	err = initPageTemplate.Execute(w, HomepageParams{
-		Organization: s.organization,
-		State:        s.state,
+		Organization: s.params.organization,
+		State:        s.params.state,
 		ManifestJSON: manifestBuf.String(),
 	})
 
@@ -128,14 +150,4 @@ func (s *setupServer) run() (err error) {
 		}
 	}()
 	return
-}
-
-func CreateSetupServer(ctx context.Context, organization string, state string) *setupServer {
-	return &setupServer{
-		ctx:          ctx,
-		state:        state,
-		organization: organization,
-		callbackCh:   make(chan *callback, 1),
-		errCh:        make(chan error, 1),
-	}
 }

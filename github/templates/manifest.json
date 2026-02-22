@@ -2,10 +2,10 @@
   "name": "Cloudflare Runners",
   "url": "https://mloki.dev",
   "hook_attributes": {
-    "url": "https://mloki.dev",
+    "url": "{{.WebhookURL}}",
     "active": true
   },
-  "redirect_url": "{{.}}",
+  "redirect_url": "{{.RedirectURL}}",
   "description": "Run Github Workflows on Cloudflare Containers",
   "public": false,
   "default_permissions": {

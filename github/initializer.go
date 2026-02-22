@@ -12,15 +12,20 @@ import (
 	"github.com/pkg/browser"
 )
 
-type Initializer struct {
-	ctx          context.Context
-	organization string
+type AppParams struct {
+	WebhookURL   string
+	Organization string
 }
 
-func CreateInitializer(ctx context.Context, organization string) *Initializer {
+type Initializer struct {
+	ctx    context.Context
+	params AppParams
+}
+
+func CreateInitializer(ctx context.Context, params AppParams) *Initializer {
 	return &Initializer{
 		ctx,
-		organization,
+		params,
 	}
 }
 
@@ -39,7 +44,11 @@ func (i *Initializer) Run() (App, error) {
 
 	state := rand.Text()
 
-	server := CreateSetupServer(i.ctx, i.organization, state)
+	server := CreateSetupServer(i.ctx, templateParams{
+		organization: i.params.Organization,
+		webhookURL:   i.params.WebhookURL,
+		state:        state,
+	})
 
 	if err := server.run(); err != nil {
 		return app, err

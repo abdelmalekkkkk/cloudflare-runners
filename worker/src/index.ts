@@ -3,11 +3,11 @@ import crypto from "crypto";
 const loadConfig = async (env: Env) => {
   const [key, encrypted] = await Promise.all([
     env.APP_KEY.get().then((key) => Buffer.from(key, "hex")),
-    env.BUCKET.get("config.json").then((resp) => resp?.text()),
+    env.BUCKET.get("app_config.json").then((resp) => resp?.text()),
   ]);
 
   if (!encrypted) {
-    throw new Error("config.json not found");
+    throw new Error("app_config.json not found");
   }
 
   const [nonce, ciphertext, tag] = encrypted.split(":").map((part) => Buffer.from(part, "hex"));
