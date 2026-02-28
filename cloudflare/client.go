@@ -17,16 +17,20 @@ import (
 	"github.com/cloudflare/cloudflare-go/v6/workers"
 )
 
-type Client struct {
-	ctx       context.Context
-	client    *cloudflare.Client
-	accountID string
+type Identifiers struct {
+	WorkerName    string
+	BucketName    string
+	SecretName    string
+	QueueName     string
+	SecretStoreID string
 }
 
-const bucket = "cf-runners"
-const workerName = "cloudflare-runners-worker"
-const secretName = "cf-runners-key"
-const queueName = "cf-runners-queue"
+type Client struct {
+	ctx         context.Context
+	client      *cloudflare.Client
+	accountID   string
+	identifiers Identifiers
+}
 
 func GetAccountID(ctx context.Context, client *cloudflare.Client, token string) (string, error) {
 	res, err := client.Accounts.List(context.Background(), accounts.AccountListParams{})
@@ -42,19 +46,27 @@ func GetAccountID(ctx context.Context, client *cloudflare.Client, token string) 
 	return res.Result[0].ID, nil
 }
 
-func CreateClient(ctx context.Context, token string) (*Client, error) {
-	client := cloudflare.NewClient(option.WithAPIToken(token), option.WithMaxRetries(0))
+type CreateClientParams struct {
+	Token       string
+	Identifiers Identifiers
+}
 
-	accountID, err := GetAccountID(ctx, client, token)
+func CreateClient(ctx context.Context, params CreateClientParams) (*Client, error) {
+	client := cloudflare.NewClient(option.WithAPIToken(params.Token), option.WithMaxRetries(0))
+
+	accountID, err := GetAccountID(ctx, client, params.Token)
 
 	if err != nil {
 		return nil, err
 	}
 
+	environment := params.Identifiers
+
 	return &Client{
 		ctx,
 		client,
 		accountID,
+		environment,
 	}, nil
 }
 
@@ -67,7 +79,7 @@ func isErrorStatus(err error, status int) bool {
 func (c *Client) CreateBucket() error {
 	_, err := c.client.R2.Buckets.New(c.ctx, r2.BucketNewParams{
 		AccountID: cloudflare.String(c.accountID),
-		Name:      cloudflare.String(bucket),
+		Name:      cloudflare.String(c.identifiers.BucketName),
 	})
 
 	if err != nil {
@@ -86,13 +98,13 @@ func (c *Client) CreateBucket() error {
 }
 
 func (c *Client) PutObject(path string, data []byte) error {
-	endpoint := fmt.Sprintf("/accounts/%s/r2/buckets/%s/objects/%s", c.accountID, bucket, path)
+	endpoint := fmt.Sprintf("/accounts/%s/r2/buckets/%s/objects/%s", c.accountID, c.identifiers.BucketName, path)
 
 	return c.client.Put(c.ctx, endpoint, bytes.NewReader(data), nil)
 }
 
 func (c *Client) GetObject(path string) ([]byte, error) {
-	endpoint := fmt.Sprintf("/accounts/%s/r2/buckets/%s/objects/%s", c.accountID, bucket, path)
+	endpoint := fmt.Sprintf("/accounts/%s/r2/buckets/%s/objects/%s", c.accountID, c.identifiers.BucketName, path)
 
 	resp := &http.Response{}
 
@@ -118,7 +130,7 @@ func (c *Client) CreateWorker() (string, error) {
 	res, err := c.client.Workers.Beta.Workers.New(c.ctx, workers.BetaWorkerNewParams{
 		AccountID: cloudflare.String(c.accountID),
 		Worker: workers.WorkerParam{
-			Name: cloudflare.String(workerName),
+			Name: cloudflare.String(c.identifiers.WorkerName),
 			Subdomain: cloudflare.F(workers.WorkerSubdomainParam{
 				Enabled: cloudflare.Bool(true),
 			}),
@@ -142,7 +154,7 @@ var ErrQueueExists = errors.New("cf runners queue already exists")
 func (c *Client) CreateQueue() (string, error) {
 	res, err := c.client.Queues.New(c.ctx, queues.QueueNewParams{
 		AccountID: cloudflare.String(c.accountID),
-		QueueName: cloudflare.String(queueName),
+		QueueName: cloudflare.String(c.identifiers.QueueName),
 	})
 	if err != nil {
 		if isErrorStatus(err, http.StatusForbidden) {
@@ -165,7 +177,7 @@ func (c *Client) GetWorkerURL() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("https://%s.%s.workers.dev", workerName, res.Subdomain), err
+	return fmt.Sprintf("https://%s.%s.workers.dev", c.identifiers.WorkerName, res.Subdomain), err
 }
 
 func (c *Client) GetSecretStoreID() (string, error) {
@@ -192,7 +204,7 @@ func (c *Client) StoreKey(storeID string, key string) error {
 		AccountID: cloudflare.String(c.accountID),
 		Body: []secrets_store.StoreSecretNewParamsBody{
 			{
-				Name:    cloudflare.String(secretName),
+				Name:    cloudflare.String(c.identifiers.SecretName),
 				Scopes:  cloudflare.F([]string{"workers"}),
 				Value:   cloudflare.String(key),
 				Comment: cloudflare.String("Generated and managed by Cloudflare Runners"),

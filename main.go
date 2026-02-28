@@ -12,11 +12,17 @@ import (
 	"syscall"
 
 	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
+	"github.com/abdelmalekkkkk/cf-runners/credentials"
 	"github.com/abdelmalekkkkk/cf-runners/encryption"
 	"github.com/abdelmalekkkkk/cf-runners/github"
 	"github.com/abdelmalekkkkk/cf-runners/input"
 	"github.com/abdelmalekkkkk/cf-runners/state"
 )
+
+const bucketName = "cf-runners"
+const workerName = "cf-runners-worker"
+const secretName = "cf-runners-key"
+const queueName = "cf-runners-queue"
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -30,7 +36,7 @@ func main() {
 		cancel()
 	}()
 
-	cfToken, err := cloudflare.LoadToken()
+	cfToken, err := credentials.LoadCloudflareToken()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,13 +49,21 @@ func main() {
 			log.Fatal("An error occured: ", err)
 		}
 
-		err = cloudflare.SaveToken(cfToken)
+		err = credentials.SaveCloudflareToken(cfToken)
 		if err != nil {
 			log.Fatal("An error occured: ", err)
 		}
 	}
 
-	client, err := cloudflare.CreateClient(ctx, cfToken)
+	client, err := cloudflare.CreateClient(ctx, cloudflare.CreateClientParams{
+		Token: cfToken,
+		Identifiers: cloudflare.Identifiers{
+			WorkerName: workerName,
+			BucketName: bucketName,
+			SecretName: secretName,
+			QueueName:  queueName,
+		},
+	})
 	if err != nil {
 		log.Fatal("An error occured while creating client: ", err)
 	}
