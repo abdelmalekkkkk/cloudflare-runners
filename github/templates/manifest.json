@@ -10,9 +10,8 @@
   "public": false,
   "default_permissions": {
     "actions": "write",
-    "metadata": "read",
-    "organization_self_hosted_runners": "write",
-    "repository_hooks": "write"
+    "administration": "write",
+    "metadata": "read"
   },
   "default_events": ["workflow_job", "workflow_run"]
 }

@@ -1,23 +1,73 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "worker",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-02-19",
-  "observability": {
-    "enabled": true,
-  },
-  "compatibility_flags": ["nodejs_compat"],
-  "secrets_store_secrets": [
-    {
-      "store_id": "cd94089bb136497ba1d55e0031208753",
-      "binding": "APP_KEY",
-      "secret_name": "cf-runners-key",
-    },
-  ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "cf-runners",
-    },
-  ],
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-02-19",
+	"containers": [
+		{
+			"instance_type": "standard-4",
+			"class_name": "Runner",
+			"image": "../image/Dockerfile.local",
+		},
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "RUNNER",
+				"class_name": "Runner",
+			},
+		],
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["Runner"],
+		},
+	],
+	"observability": {
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true,
+		},
+		"traces": {
+			"enabled": true,
+			"persist": true,
+			"head_sampling_rate": 1,
+		},
+	},
+	"compatibility_flags": ["nodejs_compat"],
+	"secrets_store_secrets": [
+		{
+			"store_id": "$STORE_ID",
+			"binding": "APP_KEY",
+			"secret_name": "cf-runners-key",
+		},
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "cf-runners",
+			"remote": true,
+		},
+	],
+	"queues": {
+		"producers": [
+			{
+				"queue": "cf-runners-queue",
+				"binding": "QUEUE",
+			},
+		],
+		"consumers": [
+			{
+				"queue": "cf-runners-queue",
+			},
+		],
+	},
+	"dev": {
+		"generate_types": true,
+	},
 }

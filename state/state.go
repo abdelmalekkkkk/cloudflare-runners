@@ -20,6 +20,7 @@ type GithubApp struct {
 type State struct {
 	GithubApp     *GithubApp
 	WorkerID      string
+	QueueID       string
 	SecretStoreID string
 	UpdatedAt     time.Time
 }
@@ -139,4 +140,27 @@ func (s *StateManager) GetGithubApp() (*GithubApp, error) {
 	}
 
 	return s.state.GithubApp, nil
+}
+
+func (s *StateManager) SetQueueID(queueID string) error {
+	err := s.load()
+	if err != nil {
+		return err
+	}
+
+	s.state.QueueID = queueID
+	return s.save()
+}
+
+func (s *StateManager) GetQueueID() (string, error) {
+	err := s.load()
+	if err != nil {
+		return "", err
+	}
+
+	if s.state == nil {
+		return "", nil
+	}
+
+	return s.state.QueueID, nil
 }

@@ -1,33 +1,73 @@
-import crypto from "crypto";
+import { App } from './app';
+import { Jobs } from './jobs';
+import { DurableObject } from 'cloudflare:workers';
+import { Runners } from './runners';
 
-const loadConfig = async (env: Env) => {
-  const [key, encrypted] = await Promise.all([
-    env.APP_KEY.get().then((key) => Buffer.from(key, "hex")),
-    env.BUCKET.get("app_config.json").then((resp) => resp?.text()),
-  ]);
+// TODO: find a way to reuse configurations to shave off some 10 seconds
+export class Runner extends DurableObject<Env> {
+	#container: Container;
 
-  if (!encrypted) {
-    throw new Error("app_config.json not found");
-  }
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		if (!ctx.container) {
+			throw new Error('missing connected container');
+		}
+		this.#container = ctx.container;
+	}
 
-  const [nonce, ciphertext, tag] = encrypted.split(":").map((part) => Buffer.from(part, "hex"));
-
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, nonce);
-  decipher.setAuthTag(tag);
-
-  const decrypted = decipher.update(ciphertext, undefined, "utf8") + decipher.final("utf8");
-
-  return decrypted;
-};
+	start({ name, url, token, labels }: Runners.Params) {
+		this.#container.start({
+			env: {
+				CF_RUNNER_NAME: name,
+				CF_RUNNER_REPO_URL: url,
+				CF_RUNNER_TOKEN: token,
+				CF_RUNNER_LABELS: labels.join(),
+			},
+			enableInternet: true,
+		});
+	}
+}
 
 export default {
-  async fetch(request, env, ctx): Promise<Response> {
-    const now = performance.now();
-    const config = await loadConfig(env);
-    const end = performance.now();
+	async fetch(request, env, ctx): Promise<Response> {
+		const app = await App.create(env);
+		const job = await app.handleWebhook(request);
 
-    console.log(end - now);
+		ctx.waitUntil(
+			(async () => {
+				if (!job) {
+					return;
+				}
 
-    return new Response(config);
-  },
+				if (!Jobs.shouldTake(job)) {
+					return;
+				}
+
+				await env.QUEUE.send(job);
+			})(),
+		);
+
+		return new Response();
+	},
+
+	async queue(batch, env) {
+		const app = await App.create(env);
+
+		for (const message of batch.messages) {
+			const job = message.body as Jobs.Job;
+
+			const { ID, repo, labels } = job;
+
+			const token = await app.getRunnerToken(job);
+
+			const runner = env.RUNNER.get(env.RUNNER.idFromName(String(ID)));
+
+			await runner.start({
+				name: `cf-runner-${ID}`,
+				url: `https://github.com/${repo}`,
+				token,
+				labels,
+			});
+		}
+	},
 } satisfies ExportedHandler<Env>;

@@ -11,6 +11,7 @@ import (
 	"github.com/cloudflare/cloudflare-go/v6"
 	"github.com/cloudflare/cloudflare-go/v6/accounts"
 	"github.com/cloudflare/cloudflare-go/v6/option"
+	"github.com/cloudflare/cloudflare-go/v6/queues"
 	"github.com/cloudflare/cloudflare-go/v6/r2"
 	"github.com/cloudflare/cloudflare-go/v6/secrets_store"
 	"github.com/cloudflare/cloudflare-go/v6/workers"
@@ -25,6 +26,7 @@ type Client struct {
 const bucket = "cf-runners"
 const workerName = "cloudflare-runners-worker"
 const secretName = "cf-runners-key"
+const queueName = "cf-runners-queue"
 
 func GetAccountID(ctx context.Context, client *cloudflare.Client, token string) (string, error) {
 	res, err := client.Accounts.List(context.Background(), accounts.AccountListParams{})
@@ -133,6 +135,26 @@ func (c *Client) CreateWorker() (string, error) {
 	}
 
 	return res.ID, nil
+}
+
+var ErrQueueExists = errors.New("cf runners queue already exists")
+
+func (c *Client) CreateQueue() (string, error) {
+	res, err := c.client.Queues.New(c.ctx, queues.QueueNewParams{
+		AccountID: cloudflare.String(c.accountID),
+		QueueName: cloudflare.String(queueName),
+	})
+	if err != nil {
+		if isErrorStatus(err, http.StatusForbidden) {
+			return "", errors.New("API token is missing the \"Workers Scripts:Edit\" permission")
+		}
+		if isErrorStatus(err, http.StatusConflict) {
+			return "", ErrQueueExists
+		}
+		return "", err
+	}
+
+	return res.QueueID, nil
 }
 
 func (c *Client) GetWorkerURL() (string, error) {

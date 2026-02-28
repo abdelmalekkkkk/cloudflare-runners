@@ -20,4 +20,10 @@ USER root
 
 RUN ./bin/installdependencies.sh
 
+COPY start.sh .
+
+RUN chmod +x start.sh
+
 USER runner
+
+ENTRYPOINT [ "/runner/start.sh" ]

@@ -172,4 +172,24 @@ func main() {
 		fmt.Printf("Github app \"%s\" already exists. You can manage it from %s\n", githubApp.Name, githubApp.URL)
 	}
 
+	queueID, err := stateManager.GetQueueID()
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
+
+	if queueID == "" {
+		queueID, err = client.CreateQueue()
+		if err != nil {
+			if errors.Is(err, cloudflare.ErrWorkerExists) {
+				log.Fatal("The Cloudflare Runners queue already exists, but it was not found in the state, which means the state is corrupted. Aborting.")
+			}
+			log.Fatal("An error occured: ", err)
+		}
+
+		err = stateManager.SetQueueID(queueID)
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+	}
+
 }
