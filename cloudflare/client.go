@@ -218,3 +218,39 @@ func (c *Client) StoreKey(storeID string, key string) error {
 
 	return err
 }
+
+type RegistryCredentials struct {
+	AccountID    string `json:"account_id"`
+	RegistryHost string `json:"registry_host"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+}
+
+type RegistryCredentialsEnvelope struct {
+	Success bool                `json:"success"`
+	Result  RegistryCredentials `json:"result"`
+}
+
+func (c *Client) GetRegistryCredentials() (RegistryCredentials, error) {
+	endpoint := fmt.Sprintf("/accounts/%s/containers/registries/registry.cloudflare.com/credentials", c.accountID)
+
+	var env RegistryCredentialsEnvelope
+
+	resp := &http.Response{}
+
+	err := c.client.Post(
+		c.ctx,
+		endpoint,
+		[]byte("{ \"expiration_minutes\": 15000, \"permissions\": [ \"push\", \"pull\" ] }"),
+		&env,
+		option.WithResponseInto(&resp),
+	)
+	if !env.Success {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Println(resp.Status)
+		fmt.Printf("%s\n", body)
+		return env.Result, errors.New("unable to get registry credentials")
+	}
+
+	return env.Result, err
+}

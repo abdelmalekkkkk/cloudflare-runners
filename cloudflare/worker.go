@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"net/textproto"
 
 	"github.com/cloudflare/cloudflare-go/v6"
@@ -202,9 +201,8 @@ func (d *WorkerDeployer) upload() error {
 	}
 
 	var env workers.ScriptUpdateResponseEnvelope
-	err = d.client.Execute(
+	err = d.client.Put(
 		d.ctx,
-		http.MethodPut,
 		fmt.Sprintf("accounts/%s/workers/scripts/%s", d.accountID, d.identifiers.WorkerName),
 		&buf,
 		&env,
