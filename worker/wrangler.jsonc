@@ -7,7 +7,7 @@
 		{
 			"instance_type": "standard-4",
 			"class_name": "Runner",
-			"image": "../image/Dockerfile.local",
+			"image": "image/Dockerfile.local",
 		},
 	],
 	"durable_objects": {
