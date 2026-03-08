@@ -1,4 +1,4 @@
-package images
+package cloudflare
 
 import (
 	"bytes"
@@ -10,31 +10,30 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
 	"golang.org/x/sync/errgroup"
 )
 
 const dockerRegistryBase = "https://registry-1.docker.io/v2"
 
-type Copier struct {
+type copier struct {
 	ctx              context.Context
-	cloudflareClient *cloudflare.Client
+	cloudflareClient *Client
 
 	dockerImageName     string
 	cloudflareImageName string
 
 	dockerToken           string
-	cloudflareCredentials cloudflare.RegistryCredentials
+	cloudflareCredentials RegistryCredentials
 }
 
 type CopierParams struct {
-	CloudflareClient    *cloudflare.Client
+	CloudflareClient    *Client
 	DockerImageName     string
 	CloudflareImageName string
 }
 
-func CreateCopier(ctx context.Context, params CopierParams) *Copier {
-	return &Copier{
+func createCopier(ctx context.Context, params CopierParams) *copier {
+	return &copier{
 		ctx:                 ctx,
 		cloudflareClient:    params.CloudflareClient,
 		dockerImageName:     params.DockerImageName,
@@ -42,7 +41,7 @@ func CreateCopier(ctx context.Context, params CopierParams) *Copier {
 	}
 }
 
-func (c *Copier) Copy() (string, error) {
+func (c *copier) copy() (string, error) {
 	err := c.authenticateDockerRegistry()
 	if err != nil {
 		return "", err
@@ -87,7 +86,7 @@ func (c *Copier) Copy() (string, error) {
 	return imageID, nil
 }
 
-func (c *Copier) imageID(digest string) (string, error) {
+func (c *copier) imageID(digest string) (string, error) {
 	id, found := strings.CutPrefix(digest, "sha256:")
 
 	if !found {
@@ -97,7 +96,7 @@ func (c *Copier) imageID(digest string) (string, error) {
 	return id, nil
 }
 
-func (c *Copier) writeManifest(manifest dockerManifest, imageID string) error {
+func (c *copier) writeManifest(manifest dockerManifest, imageID string) error {
 	endpoint := fmt.Sprintf("https://%s/v2/%s/%s/manifests/%s", c.cloudflareCredentials.RegistryHost, c.cloudflareCredentials.AccountID, c.cloudflareImageName, imageID)
 
 	buf := bytes.NewBuffer(nil)
@@ -126,7 +125,7 @@ func (c *Copier) writeManifest(manifest dockerManifest, imageID string) error {
 	return nil
 }
 
-func (c *Copier) copyBlob(blob dockerBlobMetadata) error {
+func (c *copier) copyBlob(blob dockerBlobMetadata) error {
 	exists, err := c.blobExists(blob.Digest)
 	if err != nil {
 		return err
@@ -171,7 +170,7 @@ func (c *Copier) copyBlob(blob dockerBlobMetadata) error {
 	return nil
 }
 
-func (c *Copier) blobExists(digest string) (bool, error) {
+func (c *copier) blobExists(digest string) (bool, error) {
 	endpoint := fmt.Sprintf("https://%s/v2/%s/%s/blobs/%s", c.cloudflareCredentials.RegistryHost, c.cloudflareCredentials.AccountID, c.cloudflareImageName, digest)
 
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodHead, endpoint, nil)
@@ -185,7 +184,7 @@ func (c *Copier) blobExists(digest string) (bool, error) {
 	return resp.StatusCode == http.StatusOK, err
 }
 
-func (c *Copier) getBlobUploadURL(digest string) (string, error) {
+func (c *copier) getBlobUploadURL(digest string) (string, error) {
 	endpoint := fmt.Sprintf("https://%s/v2/%s/%s/blobs/uploads", c.cloudflareCredentials.RegistryHost, c.cloudflareCredentials.AccountID, c.cloudflareImageName)
 
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodPost, endpoint, nil)
@@ -231,7 +230,7 @@ type dockerManifest struct {
 	Layers        []dockerBlobMetadata `json:"layers"`
 }
 
-func (c *Copier) getManifest() (dockerManifest, error) {
+func (c *copier) getManifest() (dockerManifest, error) {
 	var manifest dockerManifest
 
 	endpoint := fmt.Sprintf("%s/%s/manifests/latest", dockerRegistryBase, c.dockerImageName)
@@ -263,7 +262,7 @@ func (c *Copier) getManifest() (dockerManifest, error) {
 	return manifest, nil
 }
 
-func (c *Copier) authenticateCloudflareRegistry() (err error) {
+func (c *copier) authenticateCloudflareRegistry() (err error) {
 	c.cloudflareCredentials, err = c.cloudflareClient.GetRegistryCredentials()
 	return
 }
@@ -272,7 +271,7 @@ type dockerTokens struct {
 	Token string `json:"token"`
 }
 
-func (c *Copier) authenticateDockerRegistry() error {
+func (c *copier) authenticateDockerRegistry() error {
 	endpoint := fmt.Sprintf("https://auth.docker.io/token?service=registry.docker.io&scope=repository:%s:pull", c.dockerImageName)
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

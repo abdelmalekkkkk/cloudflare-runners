@@ -1,7 +1,6 @@
 package cloudflare
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,18 +10,15 @@ import (
 	"github.com/cloudflare/cloudflare-go/v6"
 	"github.com/cloudflare/cloudflare-go/v6/accounts"
 	"github.com/cloudflare/cloudflare-go/v6/option"
-	"github.com/cloudflare/cloudflare-go/v6/queues"
 	"github.com/cloudflare/cloudflare-go/v6/r2"
 	"github.com/cloudflare/cloudflare-go/v6/secrets_store"
 	"github.com/cloudflare/cloudflare-go/v6/workers"
 )
 
 type Identifiers struct {
-	WorkerName    string
-	BucketName    string
-	SecretName    string
-	QueueName     string
-	SecretStoreID string
+	WorkerName string
+	BucketName string
+	SecretName string
 }
 
 type Client struct {
@@ -76,7 +72,7 @@ func isErrorStatus(err error, status int) bool {
 }
 
 // error is nil if the bucket already exists
-func (c *Client) CreateBucket() error {
+func (c *Client) EnsureBucket() error {
 	_, err := c.client.R2.Buckets.New(c.ctx, r2.BucketNewParams{
 		AccountID: cloudflare.String(c.accountID),
 		Name:      cloudflare.String(c.identifiers.BucketName),
@@ -100,7 +96,7 @@ func (c *Client) CreateBucket() error {
 func (c *Client) PutObject(path string, data []byte) error {
 	endpoint := fmt.Sprintf("/accounts/%s/r2/buckets/%s/objects/%s", c.accountID, c.identifiers.BucketName, path)
 
-	return c.client.Put(c.ctx, endpoint, bytes.NewReader(data), nil)
+	return c.client.Put(c.ctx, endpoint, data, nil)
 }
 
 func (c *Client) GetObject(path string) ([]byte, error) {
@@ -147,26 +143,6 @@ func (c *Client) CreateWorker() (string, error) {
 	}
 
 	return res.ID, nil
-}
-
-var ErrQueueExists = errors.New("cf runners queue already exists")
-
-func (c *Client) CreateQueue() (string, error) {
-	res, err := c.client.Queues.New(c.ctx, queues.QueueNewParams{
-		AccountID: cloudflare.String(c.accountID),
-		QueueName: cloudflare.String(c.identifiers.QueueName),
-	})
-	if err != nil {
-		if isErrorStatus(err, http.StatusForbidden) {
-			return "", errors.New("API token is missing the \"Workers Scripts:Edit\" permission")
-		}
-		if isErrorStatus(err, http.StatusConflict) {
-			return "", ErrQueueExists
-		}
-		return "", err
-	}
-
-	return res.QueueID, nil
 }
 
 func (c *Client) GetWorkerURL() (string, error) {
@@ -236,21 +212,39 @@ func (c *Client) GetRegistryCredentials() (RegistryCredentials, error) {
 
 	var env RegistryCredentialsEnvelope
 
-	resp := &http.Response{}
-
 	err := c.client.Post(
 		c.ctx,
 		endpoint,
 		[]byte("{ \"expiration_minutes\": 15000, \"permissions\": [ \"push\", \"pull\" ] }"),
 		&env,
-		option.WithResponseInto(&resp),
 	)
+
+	if isErrorStatus(err, http.StatusForbidden) {
+		return env.Result, errors.New("API token is missing the \"Containers:Edit\" permission")
+	}
 	if !env.Success {
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Println(resp.Status)
-		fmt.Printf("%s\n", body)
 		return env.Result, errors.New("unable to get registry credentials")
 	}
 
 	return env.Result, err
+}
+
+type CopyDockerImageParams struct {
+	Image string
+}
+
+func (c *Client) CopyDockerImage(params CopyDockerImageParams) (string, error) {
+	copier := createCopier(c.ctx, CopierParams{
+		CloudflareClient:    c,
+		DockerImageName:     params.Image,
+		CloudflareImageName: c.identifiers.WorkerName,
+	})
+
+	imageID, err := copier.copy()
+	if err != nil {
+		return "", err
+	}
+
+	image := fmt.Sprintf("registry.cloudflare.com/%s/%s:%s", c.accountID, c.identifiers.WorkerName, imageID)
+	return image, nil
 }

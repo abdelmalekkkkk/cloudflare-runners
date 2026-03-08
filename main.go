@@ -19,10 +19,11 @@ import (
 	"github.com/abdelmalekkkkk/cf-runners/state"
 )
 
+const workerVersion = "1.0.0"
 const bucketName = "cf-runners"
 const workerName = "cf-runners-worker"
 const secretName = "cf-runners-key"
-const queueName = "cf-runners-queue"
+const runnerImage = "abdelmalekkkkk/cloudflare-runners"
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,17 +43,13 @@ func main() {
 	}
 
 	if cfToken == "" {
-		fmt.Print("Please enter a Cloudflare Account API Token: ")
+		fmt.Print("Please create a Cloudflare Account API Token with the following permissions:\n- Containers:Edit\n- Workers R2 Storage:Edit\n- Workers Scripts:Edit\n- Secret Store:Edit\n\nEnter the token: ")
 
 		cfToken, err = input.ReadLine(ctx)
 		if err != nil {
 			log.Fatal("An error occured: ", err)
 		}
 
-		err = credentials.SaveCloudflareToken(cfToken)
-		if err != nil {
-			log.Fatal("An error occured: ", err)
-		}
 	}
 
 	client, err := cloudflare.CreateClient(ctx, cloudflare.CreateClientParams{
@@ -61,16 +58,18 @@ func main() {
 			WorkerName: workerName,
 			BucketName: bucketName,
 			SecretName: secretName,
-			QueueName:  queueName,
 		},
 	})
 	if err != nil {
 		log.Fatal("An error occured while creating client: ", err)
 	}
 
-	fmt.Println("Creating bucket to store state...")
+	err = credentials.SaveCloudflareToken(cfToken)
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
 
-	err = client.CreateBucket()
+	err = client.EnsureBucket()
 	if err != nil {
 		log.Fatal("An error occured: ", err)
 	}
@@ -98,6 +97,11 @@ func main() {
 		}
 
 		fmt.Printf("Created worker with ID: %s\n", workerID)
+	}
+
+	secretStoreID, err := stateManager.GetSecretStoreID()
+	if err != nil {
+		log.Fatal("An error occured: ", err)
 	}
 
 	githubApp, err := stateManager.GetGithubApp()
@@ -131,11 +135,6 @@ func main() {
 			Slug: app.Slug,
 			URL:  app.URL,
 		})
-		if err != nil {
-			log.Fatal("An error occured: ", err)
-		}
-
-		secretStoreID, err := stateManager.GetSecretStoreID()
 		if err != nil {
 			log.Fatal("An error occured: ", err)
 		}
@@ -186,21 +185,63 @@ func main() {
 		fmt.Printf("Github app \"%s\" already exists. You can manage it from %s\n", githubApp.Name, githubApp.URL)
 	}
 
-	queueID, err := stateManager.GetQueueID()
+	currentWorkerVersion, err := stateManager.GetWorkerVersion()
 	if err != nil {
 		log.Fatal("An error occured: ", err)
 	}
 
-	if queueID == "" {
-		queueID, err = client.CreateQueue()
+	if currentWorkerVersion == "" {
+		fmt.Println("Uploading worker script...")
+		err = client.UploadWorker(cloudflare.UploadWorkerParams{
+			SecretStoreID: secretStoreID,
+		})
 		if err != nil {
-			if errors.Is(err, cloudflare.ErrWorkerExists) {
-				log.Fatal("The Cloudflare Runners queue already exists, but it was not found in the state, which means the state is corrupted. Aborting.")
-			}
 			log.Fatal("An error occured: ", err)
 		}
 
-		err = stateManager.SetQueueID(queueID)
+		err = stateManager.SetWorkerVersion(workerVersion)
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+
+		err = client.ActivateSubdomain()
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+	}
+
+	dockerImage, err := stateManager.GetDockerImage()
+	if err != nil {
+		log.Fatal("An error occured: ", err)
+	}
+
+	if dockerImage == "" {
+		fmt.Println("Uploading Docker image...")
+		dockerImage, err = client.CopyDockerImage(cloudflare.CopyDockerImageParams{
+			Image: runnerImage,
+		})
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+
+		err = stateManager.SetDockerImage(dockerImage)
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+	}
+
+	containerID, err := stateManager.GetContainerID()
+	if containerID == "" {
+		fmt.Println("Setting up Containers...")
+		containerID, err = client.CreateContainer(cloudflare.CreateContainerParams{
+			Image:        dockerImage,
+			InstanceType: "standard-4",
+		})
+		if err != nil {
+			log.Fatal("An error occured: ", err)
+		}
+
+		err = stateManager.SetContainerID(containerID)
 		if err != nil {
 			log.Fatal("An error occured: ", err)
 		}

@@ -20,8 +20,10 @@ type GithubApp struct {
 type State struct {
 	GithubApp     *GithubApp
 	WorkerID      string
-	QueueID       string
 	SecretStoreID string
+	WorkerVersion string
+	DockerImage   string
+	ContainerID   string
 	UpdatedAt     time.Time
 }
 
@@ -142,17 +144,17 @@ func (s *StateManager) GetGithubApp() (*GithubApp, error) {
 	return s.state.GithubApp, nil
 }
 
-func (s *StateManager) SetQueueID(queueID string) error {
+func (s *StateManager) SetWorkerVersion(workerVersion string) error {
 	err := s.load()
 	if err != nil {
 		return err
 	}
 
-	s.state.QueueID = queueID
+	s.state.WorkerVersion = workerVersion
 	return s.save()
 }
 
-func (s *StateManager) GetQueueID() (string, error) {
+func (s *StateManager) GetWorkerVersion() (string, error) {
 	err := s.load()
 	if err != nil {
 		return "", err
@@ -162,5 +164,51 @@ func (s *StateManager) GetQueueID() (string, error) {
 		return "", nil
 	}
 
-	return s.state.QueueID, nil
+	return s.state.WorkerVersion, nil
+}
+
+func (s *StateManager) SetDockerImage(dockerImage string) error {
+	err := s.load()
+	if err != nil {
+		return err
+	}
+
+	s.state.DockerImage = dockerImage
+	return s.save()
+}
+
+func (s *StateManager) GetDockerImage() (string, error) {
+	err := s.load()
+	if err != nil {
+		return "", err
+	}
+
+	if s.state == nil {
+		return "", nil
+	}
+
+	return s.state.DockerImage, nil
+}
+
+func (s *StateManager) SetContainerID(containerID string) error {
+	err := s.load()
+	if err != nil {
+		return err
+	}
+
+	s.state.ContainerID = containerID
+	return s.save()
+}
+
+func (s *StateManager) GetContainerID() (string, error) {
+	err := s.load()
+	if err != nil {
+		return "", err
+	}
+
+	if s.state == nil {
+		return "", nil
+	}
+
+	return s.state.ContainerID, nil
 }

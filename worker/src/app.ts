@@ -5,33 +5,49 @@ import { EmitterWebhookEvent } from '@octokit/webhooks';
 import { Jobs } from './jobs';
 
 export namespace App {
-	export const create = async (env: Env) => {
-		const config = await Config.load(env);
+	export const create = (env: Env) => {
+		let app: OctoApp | undefined = undefined;
 
-		const privateKey = crypto.createPrivateKey(config.pem).export({
-			type: 'pkcs8',
-			format: 'pem',
-		});
+		const getApp = async () => {
+			if (app) {
+				return app;
+			}
 
-		const app = new OctoApp({
-			appId: config.id,
-			privateKey,
-			webhooks: { secret: config.webhook_secret },
-		});
+			const config = await Config.load(env);
+
+			const privateKey = crypto.createPrivateKey(config.pem).export({
+				type: 'pkcs8',
+				format: 'pem',
+			});
+
+			app = new OctoApp({
+				appId: config.id,
+				privateKey,
+				webhooks: { secret: config.webhook_secret },
+			});
+
+			return app;
+		};
 
 		return {
-			handleWebhook: handleWebhook.bind(null, app),
-			getRunnerToken: getRunnerToken.bind(null, app),
+			handleWebhook: handleWebhook.bind(null, getApp),
+			getRunnerToken: getRunnerToken.bind(null, getApp),
 		};
 	};
 
-	const handleWebhook = async (app: OctoApp, request: Request): Promise<Jobs.Job | null> => {
+	export type App = ReturnType<typeof create>;
+
+	type GetApp = () => Promise<OctoApp>;
+
+	const handleWebhook = async (getApp: GetApp, request: Request): Promise<Jobs.Job | null> => {
+		const app = await getApp();
+
 		const { promise, resolve } = Promise.withResolvers<{
-			payload: EmitterWebhookEvent<'workflow_job.queued'>['payload'];
+			payload: EmitterWebhookEvent<'workflow_job'>['payload'];
 			instance: Octokit;
 		} | null>();
 
-		app.webhooks.on('workflow_job.queued', ({ payload, octokit }) =>
+		app.webhooks.on('workflow_job', ({ payload, octokit }) =>
 			resolve({
 				payload,
 				instance: octokit,
@@ -39,7 +55,7 @@ export namespace App {
 		);
 
 		app.webhooks.onAny(() => {
-			console.warn('Received an event other than workflow_job.queued');
+			console.warn('Received an event other than workflow_job.queued or workflow_job.completed');
 			resolve(null);
 		});
 
@@ -78,10 +94,16 @@ export namespace App {
 			repo: repository.full_name,
 			labels: workflow_job.labels,
 			installationID,
+			createdAt: workflow_job.created_at,
+			startedAt: workflow_job.started_at,
+			completedAt: workflow_job.completed_at,
+			status: workflow_job.status,
 		};
 	};
 
-	const getRunnerToken = async (app: OctoApp, job: Jobs.Job) => {
+	const getRunnerToken = async (getApp: GetApp, job: Jobs.Job) => {
+		const app = await getApp();
+
 		const instance = await app.getInstallationOctokit(job.installationID);
 
 		const [owner, repo] = job.repo.split('/');

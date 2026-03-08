@@ -16,12 +16,16 @@
 				"name": "RUNNER",
 				"class_name": "Runner",
 			},
+			{
+				"name": "ORCHESTRATOR",
+				"class_name": "Orchestrator",
+			},
 		],
 	},
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["Runner"],
+			"new_sqlite_classes": ["Runner", "Orchestrator"],
 		},
 	],
 	"observability": {
@@ -54,19 +58,6 @@
 			"remote": true,
 		},
 	],
-	"queues": {
-		"producers": [
-			{
-				"queue": "cf-runners-queue",
-				"binding": "QUEUE",
-			},
-		],
-		"consumers": [
-			{
-				"queue": "cf-runners-queue",
-			},
-		],
-	},
 	"dev": {
 		"generate_types": true,
 	},

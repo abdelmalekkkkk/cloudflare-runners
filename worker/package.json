@@ -1,23 +1,26 @@
 {
-  "name": "worker",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "test": "vitest",
-    "cf-typegen": "wrangler types"
-  },
-  "devDependencies": {
-    "@types/node": "^25.3.0",
-    "typescript": "^5.5.2",
-    "vitest": "~3.2.0",
-    "wrangler": "^4.67.0"
-  },
-  "dependencies": {
-    "@cloudflare/containers": "^0.1.0",
-    "octokit": "^5.0.5",
-    "zod": "^4.3.6"
-  }
+	"name": "worker",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest",
+		"cf-typegen": "wrangler types",
+		"drizzle": "bun run drizzle-kit"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.0",
+		"drizzle-kit": "^0.31.9",
+		"typescript": "^5.5.2",
+		"vitest": "~3.2.0",
+		"wrangler": "^4.67.0"
+	},
+	"dependencies": {
+		"@cloudflare/containers": "^0.1.0",
+		"drizzle-orm": "^0.45.1",
+		"octokit": "^5.0.5",
+		"zod": "^4.3.6"
+	}
 }
