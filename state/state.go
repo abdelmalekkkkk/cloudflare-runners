@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
+	"github.com/abdelmalekkkkk/cloudflare-runners/cloudflare"
 )
 
 const path = "state.json"

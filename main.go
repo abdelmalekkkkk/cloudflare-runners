@@ -11,12 +11,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/abdelmalekkkkk/cf-runners/cloudflare"
-	"github.com/abdelmalekkkkk/cf-runners/credentials"
-	"github.com/abdelmalekkkkk/cf-runners/encryption"
-	"github.com/abdelmalekkkkk/cf-runners/github"
-	"github.com/abdelmalekkkkk/cf-runners/input"
-	"github.com/abdelmalekkkkk/cf-runners/state"
+	"github.com/abdelmalekkkkk/cloudflare-runners/cloudflare"
+	"github.com/abdelmalekkkkk/cloudflare-runners/credentials"
+	"github.com/abdelmalekkkkk/cloudflare-runners/encryption"
+	"github.com/abdelmalekkkkk/cloudflare-runners/github"
+	"github.com/abdelmalekkkkk/cloudflare-runners/input"
+	"github.com/abdelmalekkkkk/cloudflare-runners/state"
 )
 
 const workerVersion = "1.0.0"

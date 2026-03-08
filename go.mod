@@ -1,4 +1,4 @@
-module github.com/abdelmalekkkkk/cf-runners
+module github.com/abdelmalekkkkk/cloudflare-runners
 
 go 1.26.0
 
