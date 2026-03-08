@@ -44,7 +44,7 @@ func (i *Initializer) Run() (App, error) {
 
 	state := rand.Text()
 
-	server := CreateSetupServer(i.ctx, templateParams{
+	server := createSetupServer(i.ctx, templateParams{
 		organization: i.params.Organization,
 		webhookURL:   i.params.WebhookURL,
 		state:        state,

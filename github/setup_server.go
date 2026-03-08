@@ -39,7 +39,7 @@ type templateParams struct {
 	state        string
 }
 
-func CreateSetupServer(ctx context.Context, params templateParams) *setupServer {
+func createSetupServer(ctx context.Context, params templateParams) *setupServer {
 	return &setupServer{
 		ctx:        ctx,
 		params:     params,
